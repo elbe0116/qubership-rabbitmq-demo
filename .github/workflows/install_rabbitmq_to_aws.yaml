@@ -97,6 +97,9 @@ jobs:
                 memory: 1Gi
               storage: 5Gi
               storageclass: gp2
+            # Required on EKS so PVC is writable by RabbitMQ process (avoids CrashLoopBackOff)
+            fsGroup: 1000
+            runAsUser: 1000
             securityContext: {}
           tests:
             runTests: true
