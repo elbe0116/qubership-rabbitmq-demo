@@ -27,7 +27,6 @@ import urllib3
 import utils
 from robot.api import logger
 import os
-from distutils import util
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 from robot.utils import ConnectionCache
 from robot.libraries.BuiltIn import BuiltIn
@@ -36,11 +35,22 @@ from PlatformLibrary import PlatformLibrary
 
 RabbitMqMessage = Union[Tuple[Dict[str, Any], Dict[str, Any], str], Tuple[None, None, None]]  # noqa: 993
 
+
+def _strtobool(val):
+    """Replace distutils.util.strtobool (removed in Python 3.12+). Returns 1 for true, 0 for false."""
+    v = (val or "").lower()
+    if v in ("y", "yes", "t", "true", "1", "on"):
+        return 1
+    if v in ("n", "no", "f", "false", "0", "off"):
+        return 0
+    raise ValueError(f"invalid truth value {val!r}")
+
+
 CA_CERT_PATH = '/tls/ca.crt'
 TLS_CERT_PATH = '/tls/tls.crt'
 TLS_KEY_PATH = '/tls/tls.key'
-SSL_ENABLED = util.strtobool(os.environ.get('RABBITMQ_ENABLE_SSL', 'false'))
-EXTERNAL_ENABLED = util.strtobool(os.environ.get('EXTERNAL_ENABLED', 'false'))
+SSL_ENABLED = _strtobool(os.environ.get('RABBITMQ_ENABLE_SSL', 'false'))
+EXTERNAL_ENABLED = _strtobool(os.environ.get('EXTERNAL_ENABLED', 'false'))
 
 
 class RequestConnection(object):

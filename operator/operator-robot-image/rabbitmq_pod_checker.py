@@ -14,13 +14,23 @@
 
 import os
 import time
-from distutils import util
 
 from PlatformLibrary import PlatformLibrary
 
+
+def _strtobool(val):
+    """Replace distutils.util.strtobool (removed in Python 3.12+). Returns 1 for true, 0 for false."""
+    v = (val or "").lower()
+    if v in ("y", "yes", "t", "true", "1", "on"):
+        return 1
+    if v in ("n", "no", "f", "false", "0", "off"):
+        return 0
+    raise ValueError(f"invalid truth value {val!r}")
+
+
 environ = os.environ
 auto_reboot = environ.get('RABBITMQ_AUTO_REBOOT', 'false').lower() in ("yes", "true", "t", "1")
-external_enabled = util.strtobool(environ.get('EXTERNAL_ENABLED', 'false'))
+external_enabled = _strtobool(environ.get('EXTERNAL_ENABLED', 'false'))
 namespace = environ.get('NAMESPACE')
 initial_sleep = 120 if auto_reboot else 40
 service = 'rmqlocal'
