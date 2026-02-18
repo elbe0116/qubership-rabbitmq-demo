@@ -251,7 +251,7 @@ tests:
   prometheusUrl: ""
   # S3/ATP storage for test results upload (e.g. AWS install, run_tests pipeline)
   atpStorage:
-    provider: ""
+    provider: "aws"
     serverUrl: ""
     serverUiUrl: ""
     bucket: ""
