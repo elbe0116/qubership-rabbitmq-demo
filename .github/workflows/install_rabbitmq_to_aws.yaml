@@ -56,19 +56,47 @@ jobs:
 
       - name: Install RabbitMQ Cluster
         run: |
-          echo "Clean previously installed RabbitMQ"
-          kubectl delete ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} --timeout=120s || true
+          # Uninstall Helm release first (cleans CRs and avoids finalizers blocking namespace deletion)
+          echo "Uninstalling Helm release..."
+          helm uninstall rabbitmq -n ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} --wait --timeout=120s || true
+          
+          echo "Deleting namespace..."
+          kubectl delete ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} --timeout=180s --wait=false || true
+          
           echo "Waiting for namespace deletion to complete..."
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+          for i in $(seq 1 90); do
             if ! kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} 2>/dev/null; then
               echo "Namespace deleted successfully"
               break
             fi
-            echo "Waiting... ($i/30)"
+            
+            NS_STATUS=$(kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+            echo "Waiting... ($i/90) - Namespace status: $NS_STATUS"
+            
+            # If stuck in Terminating, force delete (remove finalizers) like in monitoring workflow
+            if [ "$i" -gt 30 ] && [ "$NS_STATUS" = "Terminating" ]; then
+              echo "Namespace stuck in Terminating state, attempting to force delete..."
+              echo "Removing finalizers from namespace resources..."
+              kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 kubectl get --show-kind --ignore-not-found -n ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} -o name 2>/dev/null | \
+                xargs -n 1 kubectl patch -n ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
+              echo "Removing finalizers from namespace..."
+              kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} -o json | \
+                jq '.spec.finalizers = []' | \
+                kubectl replace --raw "/api/v1/namespaces/${{ vars.RABBITMQ_INSTALL_NAMESPACE }}/finalize" -f - || true
+              sleep 5
+            fi
+            
             sleep 2
           done
           
-          echo "Namespace to install: ${{ vars.RABBITMQ_INSTALL_NAMESPACE }}"
+          if kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} 2>/dev/null; then
+            echo "ERROR: Namespace still exists after timeout!"
+            kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} -o yaml
+            exit 1
+          fi
+          
+          echo "Creating namespace: ${{ vars.RABBITMQ_INSTALL_NAMESPACE }}"
+          kubectl create namespace ${{ vars.RABBITMQ_INSTALL_NAMESPACE }}
           
           # AWS EKS values: TLS off, credentials, storage, resources, tests, backup daemon
           cat > /tmp/rabbitmq-aws-values.yaml << 'EOF'
