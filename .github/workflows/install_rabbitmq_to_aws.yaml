@@ -153,7 +153,9 @@ jobs:
           # Build helm arguments dynamically
           HELM_ARGS=""
           HELM_ARGS="$HELM_ARGS --set tests.tags=${{ github.event.inputs.test_tags }}"
-          HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/elbe0116/qubership-rabbitmq-integration-tests:main"
+          # Image from this fork (push.yml builds it); tag :main — Dockerfile base image branch is fixed in the Dockerfile
+          GITHUB_GROUP=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')
+          HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/${GITHUB_GROUP}/qubership-rabbitmq-integration-tests:main"
           
           # S3: use existing bucket from variable (required for backup daemon)
           S3_BUCKET="${{ vars.RABBITMQ_S3_BUCKET }}"
