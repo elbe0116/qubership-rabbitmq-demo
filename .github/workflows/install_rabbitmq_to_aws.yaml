@@ -144,7 +144,6 @@ jobs:
             s3:
               enabled: true
               url: "https://s3.us-east-1.amazonaws.com"
-              bucket: "qstp-rabbitmq"
               region: "us-east-1"
             securityContext: {}
           statusProvisioner:
@@ -156,12 +155,12 @@ jobs:
           HELM_ARGS="$HELM_ARGS --set tests.tags=${{ github.event.inputs.test_tags }}"
           HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/netcracker/qubership-rabbitmq-integration-tests:main"
           
-          # S3 credentials for backup daemon (optional)
+          # S3: use existing bucket from variable (required for backup daemon)
+          S3_BUCKET="${{ vars.RABBITMQ_S3_BUCKET }}"
+          [ -z "$S3_BUCKET" ] && echo "WARNING: RABBITMQ_S3_BUCKET not set, backup daemon may fail (NoSuchBucket)"
+          HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.bucket=${S3_BUCKET:-qstp-rabbitmq}"
           [ -n "${{ secrets.S3_AWS_ACCESS_KEY_ID }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.keyId=${{ secrets.S3_AWS_ACCESS_KEY_ID }}"
           [ -n "${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.keySecret=${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}"
-          
-          # Optional variables (override bucket/url if set)
-          [ -n "${{ vars.RABBITMQ_S3_BUCKET }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.bucket=${{ vars.RABBITMQ_S3_BUCKET }}"
           [ -n "${{ vars.RABBITMQ_S3_URL }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.url=${{ vars.RABBITMQ_S3_URL }}"
           
           echo "Helm additional args: $HELM_ARGS"
