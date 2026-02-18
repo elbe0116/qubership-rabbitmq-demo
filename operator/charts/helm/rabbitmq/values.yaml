@@ -43,7 +43,7 @@ operator:
   pullPolicy: "Always"
   enableOperatorShovelMonitoring: true
   restartScheduler:
-    dockerImage: bitnami/kubectl:1.30.6
+    dockerImage: ghcr.io/netcracker/qubership-docker-kubectl:main
     enabled: true
     schedule: "0 0 * * *"
     affinity: {}
