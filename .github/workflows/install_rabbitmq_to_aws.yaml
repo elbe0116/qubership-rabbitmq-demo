@@ -153,7 +153,7 @@ jobs:
           # Build helm arguments dynamically
           HELM_ARGS=""
           HELM_ARGS="$HELM_ARGS --set tests.tags=${{ github.event.inputs.test_tags }}"
-          HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/netcracker/qubership-rabbitmq-integration-tests:main"
+          HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/elbe0116/qubership-rabbitmq-integration-tests:main"
           
           # S3: use existing bucket from variable (required for backup daemon)
           S3_BUCKET="${{ vars.RABBITMQ_S3_BUCKET }}"
