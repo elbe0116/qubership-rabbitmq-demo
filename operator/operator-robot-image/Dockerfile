@@ -1,40 +1,32 @@
-FROM ghcr.io/netcracker/qubership-docker-integration-tests:0.1.19
+FROM ghcr.io/elbe0116/qubership-docker-integration-tests:PSUPATPOS-63
 
-ENV ROBOT_OUTPUT=${ROBOT_HOME}/output\
+# Switch to root for installation and for EKS/S3 compatibility (same as Kafka)
+USER root
+
+ENV ROBOT_OUTPUT=/opt/robot/output \
     SERVICE_CHECKER_SCRIPT=${ROBOT_HOME}/rabbitmq_pod_checker.py \
-    USER_UID=1000
+    SERVICE_CHECKER_SCRIPT_TIMEOUT=500
 
 ENV STATUS_CUSTOM_RESOURCE_GROUP=apps
 ENV STATUS_CUSTOM_RESOURCE_VERSION=v1
 ENV STATUS_CUSTOM_RESOURCE_PLURAL=deployments
 ENV STATUS_CUSTOM_RESOURCE_NAME=rabbitmq-integration-tests
 
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.23/main" > /etc/apk/repositories && \
-    echo "https://dl-cdn.alpinelinux.org/alpine/v3.23/community" >> /etc/apk/repositories
+RUN mkdir -p ${ROBOT_OUTPUT}
 
-RUN set -x && apk upgrade --no-cache --available
-
-RUN mkdir -p ${ROBOT_HOME} \
-    && mkdir -p ${ROBOT_OUTPUT}
-
-RUN apk add --update file gcc musl-dev libc6-compat zip jq gettext grep findutils wget sed \
-    && pip3 install setuptools==80.9.0
-
+COPY requirements.txt ${ROBOT_HOME}/requirements.txt
 COPY rabbitmq_pod_checker.py ${ROBOT_HOME}/rabbitmq_pod_checker.py
-COPY requirements.txt requirements.txt
-
-RUN pip install pbr && \
-    pip install -r requirements.txt
-
 COPY robot ${ROBOT_HOME}
 
+RUN set -x \
+    && pip3 install -r ${ROBOT_HOME}/requirements.txt \
+    && rm -rf /var/cache/apk/*
+
+# Fix permissions for non-root user (1000:0) for AWS EKS and S3 adapter scripts
+RUN chown -R 1000:0 ${ROBOT_HOME} && chmod -R 775 ${ROBOT_HOME}
+
+USER 1000:0
+
 WORKDIR ${ROBOT_HOME}
-
-VOLUME /tmp
-VOLUME /usr/bin
-
-USER ${USER_UID}
-
-# Expose the port
 EXPOSE 8080
 VOLUME ["${ROBOT_OUTPUT}"]

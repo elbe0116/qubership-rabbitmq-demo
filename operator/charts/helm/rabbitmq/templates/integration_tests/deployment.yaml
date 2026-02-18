@@ -137,6 +137,34 @@ spec:
                   key: password
             - name: PROMETHEUS_URL
               value: {{ .Values.tests.prometheusUrl }}
+            {{- if .Values.tests.atpStorage.provider }}
+            - name: ATP_STORAGE_PROVIDER
+              value: {{ .Values.tests.atpStorage.provider | quote }}
+            - name: ATP_STORAGE_SERVER_URL
+              value: {{ .Values.tests.atpStorage.serverUrl | quote }}
+            - name: ATP_STORAGE_SERVER_UI_URL
+              value: {{ .Values.tests.atpStorage.serverUiUrl | quote }}
+            - name: ATP_STORAGE_BUCKET
+              value: {{ .Values.tests.atpStorage.bucket | quote }}
+            - name: ATP_STORAGE_REGION
+              value: {{ .Values.tests.atpStorage.region | quote }}
+            - name: ATP_STORAGE_USERNAME
+              value: {{ .Values.tests.atpStorage.username | quote }}
+            - name: ATP_STORAGE_PASSWORD
+              value: {{ .Values.tests.atpStorage.password | quote }}
+            {{- end }}
+            {{- if .Values.tests.atpReportViewUiUrl }}
+            - name: ATP_REPORT_VIEW_UI_URL
+              value: {{ .Values.tests.atpReportViewUiUrl | quote }}
+            {{- end }}
+            {{- if .Values.tests.environmentName }}
+            - name: ENVIRONMENT_NAME
+              value: {{ .Values.tests.environmentName | quote }}
+            {{- end }}
+            {{- if .Values.tests.monitoredImages }}
+            - name: MONITORED_IMAGES
+              value: {{ .Values.tests.monitoredImages | quote }}
+            {{- end }}
           resources:
             requests:
               memory: {{ default "256Mi" .Values.tests.resources.requests.memory }}

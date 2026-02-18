@@ -1,0 +1,149 @@
+name: Install RabbitMQ to AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment Name"
+        required: false
+        default: "dev"
+      test_tags:
+        description: "Test tags to run (e.g. smoke, backup, or empty for all)"
+        required: false
+        default: ""
+
+jobs:
+  Install-RabbitMQ:
+    environment: "${{ github.event.inputs.environment }}"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Listing downloaded files
+        run: |
+          pwd
+          ls -R ./
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.32.0'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+
+      - name: Verify tools
+        run: |
+          kubectl version --client
+          helm version
+          aws --version
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Configure kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ vars.AWS_REGION || 'us-east-1' }} --name ${{ vars.AWS_CLUSTERNAME }}
+
+      - name: Verify cluster access
+        run: kubectl get nodes
+
+      - name: Install RabbitMQ Cluster
+        run: |
+          echo "Clean previously installed RabbitMQ"
+          kubectl delete ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} --timeout=120s || true
+          echo "Waiting for namespace deletion to complete..."
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+            if ! kubectl get ns ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} 2>/dev/null; then
+              echo "Namespace deleted successfully"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+          
+          echo "Namespace to install: ${{ vars.RABBITMQ_INSTALL_NAMESPACE }}"
+          
+          # AWS EKS values: TLS off, credentials, storage, resources, tests, backup daemon
+          cat > /tmp/rabbitmq-aws-values.yaml << 'EOF'
+          global:
+            tls:
+              enabled: false
+            securityContext: {}
+          operator:
+            dockerImage: ghcr.io/netcracker/qubership-rabbitmq-operator:main
+          rabbitmq:
+            tls:
+              enabled: false
+            custom_params:
+              rabbitmq_cluster_name: rabbitmq
+              rabbitmq_vm_memory_high_watermark: "80%"
+              rabbitmq_default_user: admin
+              rabbitmq_default_password: admin123
+            replicas: 3
+            dockerImage: ghcr.io/netcracker/qubership-rabbitmq-image:main
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                cpu: 500m
+                memory: 1Gi
+              storage: 5Gi
+              storageclass: gp2
+            securityContext: {}
+          tests:
+            runTests: true
+            statusWritingEnabled: true
+            rabbitIsManagedByOperator: true
+            affinity: null
+          telegraf:
+            install: false
+          backupDaemon:
+            enabled: true
+            image: ghcr.io/netcracker/qubership-rabbitmq-backup-daemon:main
+            tls:
+              enabled: false
+            s3:
+              enabled: true
+              url: "https://s3.us-east-1.amazonaws.com"
+              bucket: "qstp-rabbitmq"
+              region: "us-east-1"
+            securityContext: {}
+          statusProvisioner:
+            enabled: true
+          EOF
+          
+          # Build helm arguments dynamically
+          HELM_ARGS=""
+          HELM_ARGS="$HELM_ARGS --set tests.tags=${{ github.event.inputs.test_tags }}"
+          HELM_ARGS="$HELM_ARGS --set tests.dockerImage=ghcr.io/netcracker/qubership-rabbitmq-integration-tests:main"
+          
+          # S3 credentials for backup daemon (optional)
+          [ -n "${{ secrets.S3_AWS_ACCESS_KEY_ID }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.keyId=${{ secrets.S3_AWS_ACCESS_KEY_ID }}"
+          [ -n "${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.keySecret=${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}"
+          
+          # Optional variables (override bucket/url if set)
+          [ -n "${{ vars.RABBITMQ_S3_BUCKET }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.bucket=${{ vars.RABBITMQ_S3_BUCKET }}"
+          [ -n "${{ vars.RABBITMQ_S3_URL }}" ] && HELM_ARGS="$HELM_ARGS --set backupDaemon.s3.url=${{ vars.RABBITMQ_S3_URL }}"
+          
+          echo "Helm additional args: $HELM_ARGS"
+          
+          helm install --namespace=${{ vars.RABBITMQ_INSTALL_NAMESPACE }} \
+            --create-namespace \
+            -f ./operator/charts/helm/rabbitmq/values.yaml \
+            -f /tmp/rabbitmq-aws-values.yaml \
+            rabbitmq ./operator/charts/helm/rabbitmq \
+            $HELM_ARGS
+          
+          echo "Waiting for RabbitMQ cluster to be ready..."
+          kubectl wait --for=condition=ready pod -l app=rmqlocal -n ${{ vars.RABBITMQ_INSTALL_NAMESPACE }} --timeout=600s || true
+          
+          echo "RabbitMQ installation completed"
+          kubectl get pods -n ${{ vars.RABBITMQ_INSTALL_NAMESPACE }}
