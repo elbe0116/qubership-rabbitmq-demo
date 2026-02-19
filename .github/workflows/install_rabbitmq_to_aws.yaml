@@ -131,8 +131,8 @@ jobs:
             securityContext: {}
           tests:
             runTests: true
-            # write_status from base image (same as Consul/Kafka)
-            statusWritingEnabled: true
+            # Kafka chart does not set STATUS_WRITING_ENABLED (write_status skipped). Set false to match.
+            statusWritingEnabled: false
             rabbitIsManagedByOperator: true
             affinity: null
           telegraf:

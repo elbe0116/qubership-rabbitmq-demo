@@ -16,6 +16,7 @@ RUN mkdir -p ${ROBOT_OUTPUT}
 
 COPY requirements.txt ${ROBOT_HOME}/requirements.txt
 COPY rabbitmq_pod_checker.py ${ROBOT_HOME}/rabbitmq_pod_checker.py
+COPY write_status_wrapper.py ${ROBOT_HOME}/write_status_wrapper.py
 COPY robot ${ROBOT_HOME}
 
 RUN set -x \

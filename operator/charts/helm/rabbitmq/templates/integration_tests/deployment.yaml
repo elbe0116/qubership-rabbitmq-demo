@@ -63,6 +63,8 @@ spec:
             {{- if .Values.tests.statusWritingEnabled }}
             - name: STATUS_WRITING_ENABLED
               value: {{ .Values.tests.statusWritingEnabled | quote }}
+            - name: WRITE_STATUS_SCRIPT
+              value: write_status_wrapper.py
             - name: STATUS_CUSTOM_RESOURCE_NAMESPACE
               valueFrom:
                 fieldRef:
