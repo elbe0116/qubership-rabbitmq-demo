@@ -131,8 +131,8 @@ jobs:
             securityContext: {}
           tests:
             runTests: true
-            # Disable CR status updates to avoid SSL error (check_hostname requires server_hostname) with Python 3.13 in base image
-            statusWritingEnabled: false
+            # write_status from base image (same as Consul/Kafka)
+            statusWritingEnabled: true
             rabbitIsManagedByOperator: true
             affinity: null
           telegraf:
