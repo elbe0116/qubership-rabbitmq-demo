@@ -4,6 +4,18 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      repository_name:
+        description: Repository with RabbitMQ service (fork if needed)
+        required: false
+        type: string
+        default: ""
+      service_branch:
+        description: Branch of RabbitMQ service repo
+        required: false
+        type: string
+        default: main
 
 jobs:
   Wait-for-images:
@@ -12,6 +24,7 @@ jobs:
       conclusion: ${{ steps.wait.outputs.conclusion }}
     steps:
       - name: Wait for dev_build.yml to complete
+        if: github.event_name != 'workflow_dispatch'
         uses: netcracker/qubership-workflow-hub/actions/wait-for-workflow@396774180000abdb825cbf150b56cc59c6913db8  #v2.0.5
         id: wait
         with:
@@ -19,11 +32,25 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           poll-interval: 20
   Rabbitmq-Pipeline:
+    if: github.event_name != 'workflow_dispatch'
     needs: Wait-for-images
     uses: Netcracker/qubership-test-pipelines/.github/workflows/rabbitmq.yaml@4cb7d7c09d0205268066b130c8c6205d9232507b #v1.4.1
     with:
-      service_branch: '${{ github.head_ref || github.ref_name }}'
+      repository_name: ${{ github.event_name == 'workflow_dispatch' && (inputs.repository_name != '' && inputs.repository_name || github.repository) || 'Netcracker/qubership-rabbitmq' }}
+      service_branch: ${{ github.event_name == 'workflow_dispatch' && inputs.service_branch || (github.head_ref || github.ref_name) }}
       pipeline_branch: '4cb7d7c09d0205268066b130c8c6205d9232507b' #this value must match the value after '@' in 'uses'
+    secrets:
+      AWS_S3_ACCESS_KEY_ID: ${{secrets.AWS_S3_ACCESS_KEY_ID}}
+      AWS_S3_ACCESS_KEY_SECRET: ${{secrets.AWS_S3_ACCESS_KEY_SECRET}}
+
+  Rabbitmq-Pipeline-Dispatch:
+    if: github.event_name == 'workflow_dispatch'
+    needs: Wait-for-images
+    uses: elbe0116/qubership-test-pipelines/.github/workflows/rabbitmq.yaml@main
+    with:
+      repository_name: ${{ inputs.repository_name != '' && inputs.repository_name || github.repository }}
+      service_branch: ${{ inputs.service_branch }}
+      pipeline_branch: main
     secrets:
       AWS_S3_ACCESS_KEY_ID: ${{secrets.AWS_S3_ACCESS_KEY_ID}}
       AWS_S3_ACCESS_KEY_SECRET: ${{secrets.AWS_S3_ACCESS_KEY_SECRET}}
